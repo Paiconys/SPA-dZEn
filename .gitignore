@@ -37,3 +37,5 @@ htmlcov/
 
 # TZ / local docs
 *.pdf
+media/
+PROGRESS.md
