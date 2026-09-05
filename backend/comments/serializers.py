@@ -1,48 +1,23 @@
-from django.core.validators import RegexValidator
 from rest_framework import serializers
-from .models import Comment
-import bleach
 
-latin_alnum = RegexValidator(
-    regex=r'^[a-zA-Z0-9]+$',
-    message='Username may contain only latin letters and digits.',
-)
+from .html_utils import sanitize_comment_html
+from .models import Attachment, Comment
+from .validators import resize_image_if_needed
 
-    
+
+class AttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attachment
+        fields = ['id', 'file', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']
+
+    def validate_file(self, value):
+        return resize_image_if_needed(value)
 
 
 class CommentSerializer(serializers.ModelSerializer):
-
-    def validate_text(self, value):
-        allowed_tags = ['a', 'code', 'i', 'strong']
-        allowed_attributes = {'a': ['href', 'title']}
-
-        parser = TagBalanceParser()
-        parser.feed(value)
-        parser.close()
-        msg = parser.error_message()
-        if msg:
-            raise serializers.ValidationError(msg)
-
-
-        return bleach.clean(
-            value,
-            tags=allowed_tags,
-            attributes=allowed_attributes,
-            strip=True,
-        )
-
-
-    username = serializers.CharField(
-        max_length=250,
-        validators=[
-            RegexValidator(
-                regex=r'^[a-zA-Z0-9]+$',
-                message='Username may contain only latin letters and digits.',
-            )
-        ],
-    )
-
+    attachments = AttachmentSerializer(many=True, read_only=True)
+    file = serializers.FileField(required=False, write_only=True)
 
     class Meta:
         model = Comment
@@ -54,5 +29,25 @@ class CommentSerializer(serializers.ModelSerializer):
             'text',
             'parent',
             'created_at',
+            'attachments',
+            'file',
         ]
         read_only_fields = ['id', 'created_at']
+
+    def validate_text(self, value):
+        try:
+            return sanitize_comment_html(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+
+    def validate_file(self, value):
+        return resize_image_if_needed(value)
+
+    def create(self, validated_data):
+        upload = validated_data.pop('file', None)
+        comment = Comment.objects.create(**validated_data)
+        if upload is not None:
+            attachment = Attachment(comment=comment, file=upload)
+            attachment.full_clean()
+            attachment.save()
+        return comment
