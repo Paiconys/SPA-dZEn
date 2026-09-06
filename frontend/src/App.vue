@@ -1,7 +1,19 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import { ref } from 'vue'
+import CommentForm from './components/CommentForm.vue'
+import CommentList from './components/CommentList.vue'
+
+const listRef = ref(null)
+
+function onCreated() {
+  listRef.value?.loadComments()
+}
 </script>
 
 <template>
-  <HelloWorld />
+  <main>
+    <h1>Comments</h1>
+    <CommentList ref="listRef" />
+    <CommentForm @created="onCreated" />
+  </main>
 </template>
