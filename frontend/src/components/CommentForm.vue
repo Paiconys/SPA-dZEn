@@ -25,6 +25,14 @@ const form = reactive({
 
 const captchaImageUrl = ref('')
 const error = ref('')
+const fieldErrors = reactive({
+  username: '',
+  email: '',
+  homepage: '',
+  text: '',
+  captcha: '',
+  file: '',
+})
 const success = ref('')
 const loading = ref(false)
 const textArea = ref(null)
@@ -33,6 +41,77 @@ const selectedFile = ref(null)
 
 function onFileChange(e) {
   selectedFile.value = e.target.files?.[0] || null
+  fieldErrors.file = ''
+}
+
+function clearFieldErrors() {
+  fieldErrors.username = ''
+  fieldErrors.email = ''
+  fieldErrors.homepage = ''
+  fieldErrors.text = ''
+  fieldErrors.captcha = ''
+  fieldErrors.file = ''
+}
+
+function validateClient() {
+  clearFieldErrors()
+  let ok = true
+
+  const username = form.username.trim()
+  if (!username) {
+    fieldErrors.username = 'Required'
+    ok = false
+  } else if (!/^[a-zA-Z0-9]+$/.test(username)) {
+    fieldErrors.username = 'Only latin letters and digits'
+    ok = false
+  }
+
+  const email = form.email.trim()
+  if (!email) {
+    fieldErrors.email = 'Required'
+    ok = false
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    fieldErrors.email = 'Invalid email'
+    ok = false
+  }
+
+  const homepage = form.homepage.trim()
+  if (homepage) {
+    try {
+      const url = new URL(homepage)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        fieldErrors.homepage = 'URL must start with http:// or https://'
+        ok = false
+      }
+    } catch {
+      fieldErrors.homepage = 'Invalid URL'
+      ok = false
+    }
+  }
+
+  if (!form.text.trim()) {
+    fieldErrors.text = 'Required'
+    ok = false
+  }
+
+  if (!form.captcha.trim()) {
+    fieldErrors.captcha = 'Required'
+    ok = false
+  }
+
+  if (selectedFile.value) {
+    const name = selectedFile.value.name.toLowerCase()
+    const allowed = ['.jpg', '.jpeg', '.gif', '.png', '.txt']
+    if (!allowed.some((ext) => name.endsWith(ext))) {
+      fieldErrors.file = 'Only JPG, GIF, PNG or TXT'
+      ok = false
+    } else if (name.endsWith('.txt') && selectedFile.value.size > 100 * 1024) {
+      fieldErrors.file = 'TXT must be at most 100 KB'
+      ok = false
+    }
+  }
+
+  return ok
 }
 
 async function loadCaptcha() {
@@ -76,6 +155,9 @@ function insertLink() {
 async function submitForm() {
   error.value = ''
   success.value = ''
+  if (!validateClient()) {
+    return
+  }
   loading.value = true
   try {
     // multipart: needed when attaching a file (JSON cannot carry binary)
@@ -128,16 +210,19 @@ onMounted(loadCaptcha)
     <label>
       User Name
       <input v-model="form.username" required />
+      <span v-if="fieldErrors.username" class="field-error">{{ fieldErrors.username }}</span>
     </label>
 
     <label>
       E-mail
       <input v-model="form.email" type="email" required />
+      <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
     </label>
 
     <label>
       Home page
       <input v-model="form.homepage" type="url" placeholder="https://" />
+      <span v-if="fieldErrors.homepage" class="field-error">{{ fieldErrors.homepage }}</span>
     </label>
 
     <div class="tag-bar">
@@ -150,6 +235,7 @@ onMounted(loadCaptcha)
     <label>
       Text
       <textarea ref="textArea" v-model="form.text" required rows="4" />
+      <span v-if="fieldErrors.text" class="field-error">{{ fieldErrors.text }}</span>
     </label>
 
     <div class="preview">
@@ -165,6 +251,7 @@ onMounted(loadCaptcha)
         accept=".jpg,.jpeg,.gif,.png,.txt,image/jpeg,image/gif,image/png,text/plain"
         @change="onFileChange"
       />
+      <span v-if="fieldErrors.file" class="field-error">{{ fieldErrors.file }}</span>
     </label>
 
     <div class="captcha">
@@ -173,6 +260,7 @@ onMounted(loadCaptcha)
       <label>
         CAPTCHA
         <input v-model="form.captcha" required />
+        <span v-if="fieldErrors.captcha" class="field-error">{{ fieldErrors.captcha }}</span>
       </label>
     </div>
 
@@ -218,6 +306,10 @@ label {
   min-height: 2rem;
 }
 .error { color: #b00020; }
+.field-error {
+  color: #b00020;
+  font-size: 0.85rem;
+}
 .ok { color: #0a7; }
 .captcha img { max-width: 200px; }
 </style>

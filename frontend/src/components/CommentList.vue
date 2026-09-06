@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import AttachmentList from './AttachmentList.vue'
 import CommentNode from './CommentNode.vue'
 
@@ -11,8 +11,10 @@ const page = ref(1)
 const ordering = ref('-created_at')
 const loading = ref(false)
 const error = ref('')
+const wsStatus = ref('off')
 
 const pageSize = 25
+let socket = null
 
 async function loadComments() {
   loading.value = true
@@ -34,6 +36,26 @@ async function loadComments() {
     error.value = String(e)
   } finally {
     loading.value = false
+  }
+}
+
+function connectWs() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const url = `${protocol}//${window.location.host}/ws/comments/`
+  socket = new WebSocket(url)
+
+  socket.onopen = () => {
+    wsStatus.value = 'on'
+  }
+  socket.onclose = () => {
+    wsStatus.value = 'off'
+  }
+  socket.onerror = () => {
+    wsStatus.value = 'error'
+  }
+  // Backend broadcasts new comment JSON; refresh list to keep tree/pagination correct
+  socket.onmessage = () => {
+    loadComments()
   }
 }
 
@@ -73,14 +95,21 @@ function formatDate(value) {
   return new Date(value).toLocaleString()
 }
 
-onMounted(loadComments)
+onMounted(() => {
+  loadComments()
+  connectWs()
+})
+
+onUnmounted(() => {
+  socket?.close()
+})
 
 defineExpose({ loadComments })
 </script>
 
 <template>
   <section class="comment-table">
-    <h2>Comments</h2>
+    <h2>Comments <small class="ws">WS: {{ wsStatus }}</small></h2>
 
     <p v-if="loading">Loading…</p>
     <p v-if="error" class="error">{{ error }}</p>
@@ -142,6 +171,11 @@ defineExpose({ loadComments })
 <style scoped>
 .comment-table {
   margin-bottom: 2rem;
+}
+.ws {
+  font-weight: normal;
+  font-size: 0.85rem;
+  color: #666;
 }
 table {
   width: 100%;
