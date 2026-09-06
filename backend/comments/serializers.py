@@ -1,9 +1,12 @@
+from asgiref.sync import async_to_sync
+from captcha.models import CaptchaStore
+from channels.layers import get_channel_layer
 from rest_framework import serializers
 
 from .html_utils import sanitize_comment_html
 from .models import Attachment, Comment
 from .validators import resize_image_if_needed
-from captcha.models import CaptchaStore
+
 
 class AttachmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -18,10 +21,8 @@ class AttachmentSerializer(serializers.ModelSerializer):
 class CommentSerializer(serializers.ModelSerializer):
     attachments = AttachmentSerializer(many=True, read_only=True)
     file = serializers.FileField(required=False, write_only=True)
-
     captcha_key = serializers.CharField(write_only=True)
     captcha = serializers.CharField(write_only=True)
-
 
     class Meta:
         model = Comment
@@ -39,7 +40,6 @@ class CommentSerializer(serializers.ModelSerializer):
             'captcha',
         ]
         read_only_fields = ['id', 'created_at']
-
 
     def validate(self, attrs):
         key = attrs.pop('captcha_key', None)
@@ -66,7 +66,6 @@ class CommentSerializer(serializers.ModelSerializer):
     def validate_file(self, value):
         return resize_image_if_needed(value)
 
-
     def create(self, validated_data):
         upload = validated_data.pop('file', None)
         comment = Comment.objects.create(**validated_data)
@@ -74,5 +73,13 @@ class CommentSerializer(serializers.ModelSerializer):
             attachment = Attachment(comment=comment, file=upload)
             attachment.full_clean()
             attachment.save()
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            'comments',
+            {
+                'type': 'comment.created',
+                'data': CommentSerializer(comment).data,
+            },
+        )
         return comment
-    
