@@ -1,5 +1,9 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import AttachmentList from './AttachmentList.vue'
+import CommentNode from './CommentNode.vue'
+
+const emit = defineEmits(['reply'])
 
 const comments = ref([])
 const count = ref(0)
@@ -99,7 +103,7 @@ defineExpose({ loadComments })
               Date{{ orderingMark('created_at') }}
             </button>
           </th>
-          <th>Text</th>
+          <th>Text / replies</th>
         </tr>
       </thead>
       <tbody>
@@ -107,7 +111,19 @@ defineExpose({ loadComments })
           <td>{{ c.username }}</td>
           <td>{{ c.email }}</td>
           <td>{{ formatDate(c.created_at) }}</td>
-          <td class="text" v-html="c.text" />
+          <td>
+            <div class="text" v-html="c.text" />
+            <AttachmentList :attachments="c.attachments" />
+            <button type="button" @click="emit('reply', c)">Reply</button>
+            <ul v-if="c.replies?.length" class="tree">
+              <CommentNode
+                v-for="child in c.replies"
+                :key="child.id"
+                :comment="child"
+                @reply="emit('reply', $event)"
+              />
+            </ul>
+          </td>
         </tr>
         <tr v-if="comments.length === 0">
           <td colspan="4">No comments yet</td>
@@ -158,5 +174,10 @@ th button {
 }
 .text {
   max-width: 24rem;
+  margin-bottom: 0.35rem;
+}
+.tree {
+  margin: 0.5rem 0 0;
+  padding: 0;
 }
 </style>

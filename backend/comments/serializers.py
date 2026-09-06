@@ -20,6 +20,7 @@ class AttachmentSerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     attachments = AttachmentSerializer(many=True, read_only=True)
+    replies = serializers.SerializerMethodField()
     file = serializers.FileField(required=False, write_only=True)
     captcha_key = serializers.CharField(write_only=True)
     captcha = serializers.CharField(write_only=True)
@@ -35,11 +36,16 @@ class CommentSerializer(serializers.ModelSerializer):
             'parent',
             'created_at',
             'attachments',
+            'replies',
             'file',
             'captcha_key',
             'captcha',
         ]
         read_only_fields = ['id', 'created_at']
+
+    def get_replies(self, obj):
+        children = obj.replies.all().order_by('created_at')
+        return CommentSerializer(children, many=True, context=self.context).data
 
     def validate(self, attrs):
         key = attrs.pop('captcha_key', None)

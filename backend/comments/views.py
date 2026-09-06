@@ -14,11 +14,20 @@ from .serializers import CommentSerializer
 
 
 class CommentListCreateView(ListCreateAPIView):
-    queryset = Comment.objects.all()
     serializer_class = CommentSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     ordering_fields = ['username', 'email', 'created_at']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        # Table on main page = root comments only (not replies)
+        return Comment.objects.filter(parent__isnull=True).prefetch_related(
+            'attachments',
+            'replies',
+            'replies__attachments',
+            'replies__replies',
+            'replies__replies__attachments',
+        )
 
 
 class CaptchaNewView(APIView):

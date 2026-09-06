@@ -3,6 +3,17 @@ import { onMounted, reactive, ref } from 'vue'
 
 const emit = defineEmits(['created'])
 
+const props = defineProps({
+  parentId: {
+    type: [Number, null],
+    default: null,
+  },
+  parentLabel: {
+    type: String,
+    default: '',
+  },
+})
+
 const form = reactive({
   username: '',
   email: '',
@@ -17,6 +28,12 @@ const error = ref('')
 const success = ref('')
 const loading = ref(false)
 const textArea = ref(null)
+const fileInput = ref(null)
+const selectedFile = ref(null)
+
+function onFileChange(e) {
+  selectedFile.value = e.target.files?.[0] || null
+}
 
 async function loadCaptcha() {
   const res = await fetch('/api/captcha/')
@@ -61,18 +78,24 @@ async function submitForm() {
   success.value = ''
   loading.value = true
   try {
+    // multipart: needed when attaching a file (JSON cannot carry binary)
+    const body = new FormData()
+    body.append('username', form.username)
+    body.append('email', form.email)
+    body.append('homepage', form.homepage || '')
+    body.append('text', form.text)
+    body.append('captcha_key', form.captcha_key)
+    body.append('captcha', form.captcha)
+    if (props.parentId != null) {
+      body.append('parent', String(props.parentId))
+    }
+    if (selectedFile.value) {
+      body.append('file', selectedFile.value)
+    }
+
     const res = await fetch('/api/comments/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: form.username,
-        email: form.email,
-        homepage: form.homepage || '',
-        text: form.text,
-        captcha_key: form.captcha_key,
-        captcha: form.captcha,
-        parent: null,
-      }),
+      body,
     })
     const data = await res.json()
     if (!res.ok) {
@@ -83,7 +106,9 @@ async function submitForm() {
     success.value = `Created #${data.id}`
     form.text = ''
     form.captcha = ''
-    emit('created')
+    selectedFile.value = null
+    if (fileInput.value) fileInput.value.value = ''
+    emit('created', data)
     await loadCaptcha()
   } catch (e) {
     error.value = String(e)
@@ -97,7 +122,8 @@ onMounted(loadCaptcha)
 
 <template>
   <form class="comment-form" @submit.prevent="submitForm">
-    <h2>Add comment</h2>
+    <h2>{{ parentId ? `Reply to #${parentId}` : 'Add comment' }}</h2>
+    <p v-if="parentLabel" class="reply-hint">Replying to {{ parentLabel }}</p>
 
     <label>
       User Name
@@ -131,6 +157,16 @@ onMounted(loadCaptcha)
       <div class="preview-body" v-html="form.text || '<em>Nothing to preview</em>'" />
     </div>
 
+    <label>
+      Attachment (JPG/GIF/PNG or TXT ≤ 100KB)
+      <input
+        ref="fileInput"
+        type="file"
+        accept=".jpg,.jpeg,.gif,.png,.txt,image/jpeg,image/gif,image/png,text/plain"
+        @change="onFileChange"
+      />
+    </label>
+
     <div class="captcha">
       <img v-if="captchaImageUrl" :src="captchaImageUrl" alt="captcha" />
       <button type="button" @click="loadCaptcha">Refresh captcha</button>
@@ -153,6 +189,11 @@ onMounted(loadCaptcha)
   flex-direction: column;
   gap: 0.75rem;
   max-width: 28rem;
+}
+.reply-hint {
+  margin: 0;
+  color: #555;
+  font-size: 0.9rem;
 }
 label {
   display: flex;
