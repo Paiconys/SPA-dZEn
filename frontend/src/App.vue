@@ -7,6 +7,7 @@ import Lightbox from './components/Lightbox.vue'
 const listRef = ref(null)
 const replyParentId = ref(null)
 const replyParentLabel = ref('')
+const showNewDiscussion = ref(false)
 
 const lightbox = reactive({
   open: false,
@@ -44,37 +45,67 @@ function closeLightbox() {
 
 provide('openLightbox', openLightbox)
 
-function onCreated() {
-  replyParentId.value = null
-  replyParentLabel.value = ''
-  listRef.value?.loadComments()
-}
-
-function onReply(comment) {
-  replyParentId.value = comment.id
-  replyParentLabel.value = comment.username
-  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
-}
-
 function clearReply() {
   replyParentId.value = null
   replyParentLabel.value = ''
 }
+
+function closeNewDiscussion() {
+  showNewDiscussion.value = false
+}
+
+function openNewDiscussion() {
+  clearReply()
+  showNewDiscussion.value = true
+}
+
+function startReply(comment) {
+  closeNewDiscussion()
+  if (replyParentId.value === comment.id) {
+    clearReply()
+    return
+  }
+  replyParentId.value = comment.id
+  replyParentLabel.value = comment.username
+}
+
+function onCreated() {
+  clearReply()
+  closeNewDiscussion()
+  listRef.value?.loadComments()
+}
+
+provide('replyUi', {
+  replyParentId,
+  replyParentLabel,
+  startReply,
+  clearReply,
+  onCreated,
+})
 </script>
 
 <template>
-  <main>
-    <h1>Comments</h1>
-    <CommentList ref="listRef" @reply="onReply" />
-    <div v-if="replyParentId" class="reply-bar">
-      <span>Reply mode: #{{ replyParentId }} ({{ replyParentLabel }})</span>
-      <button type="button" @click="clearReply">Cancel reply</button>
-    </div>
+  <main class="page">
+    <header class="page-head">
+      <h1>Comments</h1>
+      <button
+        v-if="!showNewDiscussion"
+        type="button"
+        class="add-btn"
+        @click="openNewDiscussion"
+      >
+        Добавить обсуждение
+      </button>
+    </header>
+
     <CommentForm
-      :parent-id="replyParentId"
-      :parent-label="replyParentLabel"
+      v-if="showNewDiscussion"
       @created="onCreated"
+      @cancel="closeNewDiscussion"
     />
+
+    <CommentList ref="listRef" />
+
     <Lightbox
       :open="lightbox.open"
       :url="lightbox.url"
@@ -87,10 +118,34 @@ function clearReply() {
 </template>
 
 <style scoped>
-.reply-bar {
+.page {
   display: flex;
+  flex-direction: column;
   gap: 1rem;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 0.75rem;
+  gap: 0.75rem 1rem;
+}
+
+.page-head h1 {
+  margin: 0;
+  flex: 1;
+}
+
+.add-btn {
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 0.95rem;
+  background: var(--accent, #3b6ea5);
+  color: #fff;
+  font-weight: 600;
+}
+
+.add-btn:hover {
+  filter: brightness(1.05);
 }
 </style>

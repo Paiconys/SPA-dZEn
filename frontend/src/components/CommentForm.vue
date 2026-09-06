@@ -1,7 +1,8 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { previewHtml, validateTagBalance } from '../htmlUtils.js'
 
-const emit = defineEmits(['created'])
+const emit = defineEmits(['created', 'cancel'])
 
 const props = defineProps({
   parentId: {
@@ -11,6 +12,10 @@ const props = defineProps({
   parentLabel: {
     type: String,
     default: '',
+  },
+  compact: {
+    type: Boolean,
+    default: false,
   },
 })
 
@@ -92,10 +97,20 @@ function validateClient() {
   if (!form.text.trim()) {
     fieldErrors.text = 'Required'
     ok = false
+  } else {
+    const balanceError = validateTagBalance(form.text)
+    if (balanceError) {
+      fieldErrors.text = balanceError
+      ok = false
+    }
   }
 
-  if (!form.captcha.trim()) {
+  const captcha = form.captcha.trim()
+  if (!captcha) {
     fieldErrors.captcha = 'Required'
+    ok = false
+  } else if (!/^[a-zA-Z0-9]+$/.test(captcha)) {
+    fieldErrors.captcha = 'Only latin letters and digits'
     ok = false
   }
 
@@ -160,11 +175,12 @@ async function submitForm() {
   }
   loading.value = true
   try {
-    // multipart: needed when attaching a file (JSON cannot carry binary)
     const body = new FormData()
     body.append('username', form.username)
     body.append('email', form.email)
-    body.append('homepage', form.homepage || '')
+    if (form.homepage.trim()) {
+      body.append('homepage', form.homepage.trim())
+    }
     body.append('text', form.text)
     body.append('captcha_key', form.captcha_key)
     body.append('captcha', form.captcha)
@@ -199,12 +215,19 @@ async function submitForm() {
   }
 }
 
+const preview = computed(() => previewHtml(form.text))
+
 onMounted(loadCaptcha)
 </script>
 
 <template>
-  <form class="comment-form" @submit.prevent="submitForm">
-    <h2>{{ parentId ? `Reply to #${parentId}` : 'Add comment' }}</h2>
+  <form class="comment-form" :class="{ compact }" @submit.prevent="submitForm">
+    <div class="form-head">
+      <h2>{{ parentId ? `Reply to #${parentId}` : 'Add comment' }}</h2>
+      <button type="button" class="ghost cancel" @click="emit('cancel')">
+        Cancel
+      </button>
+    </div>
     <p v-if="parentLabel" class="reply-hint">Replying to {{ parentLabel }}</p>
 
     <label>
@@ -220,8 +243,8 @@ onMounted(loadCaptcha)
     </label>
 
     <label>
-      Home page
-      <input v-model="form.homepage" type="url" placeholder="https://" />
+      Home page <span class="optional">(optional)</span>
+      <input v-model="form.homepage" type="text" inputmode="url" placeholder="https://" />
       <span v-if="fieldErrors.homepage" class="field-error">{{ fieldErrors.homepage }}</span>
     </label>
 
@@ -240,7 +263,7 @@ onMounted(loadCaptcha)
 
     <div class="preview">
       <h3>Preview</h3>
-      <div class="preview-body" v-html="form.text || '<em>Nothing to preview</em>'" />
+      <div class="preview-body" v-html="preview" />
     </div>
 
     <label>
@@ -256,7 +279,7 @@ onMounted(loadCaptcha)
 
     <div class="captcha">
       <img v-if="captchaImageUrl" :src="captchaImageUrl" alt="captcha" />
-      <button type="button" @click="loadCaptcha">Refresh captcha</button>
+      <button type="button" class="ghost" @click="loadCaptcha">Refresh captcha</button>
       <label>
         CAPTCHA
         <input v-model="form.captcha" required />
@@ -264,7 +287,7 @@ onMounted(loadCaptcha)
       </label>
     </div>
 
-    <button type="submit" :disabled="loading">Send</button>
+    <button type="submit" class="submit" :disabled="loading">Send</button>
 
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="success" class="ok">{{ success }}</p>
@@ -275,41 +298,141 @@ onMounted(loadCaptcha)
 .comment-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-width: 28rem;
+  gap: 0.85rem;
+  max-width: 32rem;
+  padding: 1.1rem 1.2rem 1.35rem;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #dde1e6);
+  border-radius: var(--radius, 6px);
 }
+
+.comment-form.compact {
+  max-width: none;
+  margin: 0.65rem 0 0.35rem;
+  padding: 0.85rem 1rem 1rem;
+}
+
+.form-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.form-head h2 {
+  margin: 0;
+  flex: 1;
+}
+
+.cancel {
+  margin-left: auto;
+}
+
 .reply-hint {
   margin: 0;
-  color: #555;
+  color: var(--text-muted, #888);
   font-size: 0.9rem;
 }
+
 label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.3rem;
+  font-size: 0.92rem;
 }
+
+.optional {
+  color: var(--text-muted, #888);
+  font-weight: 400;
+  font-size: 0.85em;
+}
+
+input,
+textarea {
+  border: 1px solid var(--border, #dde1e6);
+  border-radius: 4px;
+  padding: 0.45rem 0.55rem;
+  background: #fff;
+}
+
+input:focus,
+textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent-soft, #5a8bba) 45%, white);
+  outline-offset: 1px;
+}
+
 .tag-bar {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.45rem;
   flex-wrap: wrap;
 }
+
+.tag-bar button,
+.ghost {
+  border: 1px solid var(--border, #dde1e6);
+  background: var(--header-bg, #f8f9fa);
+  border-radius: 4px;
+  padding: 0.3rem 0.55rem;
+  color: var(--accent, #3b6ea5);
+}
+
 .preview {
-  border: 1px solid #ccc;
+  border: 1px solid var(--border, #dde1e6);
+  background: var(--header-bg, #f8f9fa);
   padding: 0.75rem;
   border-radius: 4px;
 }
+
 .preview h3 {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
 }
+
 .preview-body {
   min-height: 2rem;
+  line-height: 1.5;
 }
-.error { color: #b00020; }
+
+.preview-body :deep(.preview-error) {
+  color: var(--danger, #b00020);
+  font-size: 0.9rem;
+}
+
+.captcha {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.captcha img {
+  max-width: 200px;
+  border: 1px solid var(--border, #dde1e6);
+  border-radius: 4px;
+}
+
+.submit {
+  align-self: flex-start;
+  border: none;
+  border-radius: 4px;
+  padding: 0.55rem 1.1rem;
+  background: var(--accent, #3b6ea5);
+  color: #fff;
+  font-weight: 600;
+}
+
+.submit:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.error {
+  color: var(--danger, #b00020);
+}
+
 .field-error {
-  color: #b00020;
+  color: var(--danger, #b00020);
   font-size: 0.85rem;
 }
-.ok { color: #0a7; }
-.captcha img { max-width: 200px; }
+
+.ok {
+  color: var(--ok, #0a7a4b);
+}
 </style>

@@ -42,6 +42,9 @@ class CommentSerializer(serializers.ModelSerializer):
             'captcha',
         ]
         read_only_fields = ['id', 'created_at']
+        extra_kwargs = {
+            'homepage': {'required': False, 'allow_blank': True},
+        }
 
     def get_replies(self, obj):
         children = obj.replies.all().order_by('created_at')
