@@ -12,6 +12,28 @@
 - Preview и панель тегов без перезагрузки страницы
 - Live-обновление списка по WebSocket
 
+## Интерфейс
+
+**Добавить обсуждение** — открывает форму нового корневого комментария:
+
+![Добавить обсуждение](docs/screenshots/add-discussion-button.png)
+
+**Форма комментария** — имя, email, homepage (опц.), разрешённые HTML-теги, preview, вложение, CAPTCHA и отправка:
+
+![Форма комментария](docs/screenshots/comment-form.png)
+
+**Reply** — форма ответа прямо под выбранным комментарием:
+
+![Reply](docs/screenshots/reply-button.png)
+
+**Развернуть ответы** — показывает/скрывает вложенные ответы (в скобках — их число):
+
+![Развернуть ответы](docs/screenshots/expand-replies.png)
+
+**Пагинация** — по 25 корневых комментариев на страницу, Prev / Next и счётчик:
+
+![Пагинация](docs/screenshots/pagination.png)
+
 ## Запуск с нуля
 
 Нужны: Git и Docker Compose.
@@ -33,3 +55,14 @@ API: http://127.0.0.1:8000/api/comments/
 Остановка: `docker compose down`
 
 Схема БД для MySQL Workbench: [`docs/schema.sql`](docs/schema.sql)
+
+## E2E тесты
+
+Стек должен быть уже запущен (`docker compose up -d`).
+
+```bash
+cd e2e
+pip install -r requirements.txt
+playwright install chromium
+pytest
+```

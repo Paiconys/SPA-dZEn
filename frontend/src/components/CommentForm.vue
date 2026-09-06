@@ -221,7 +221,12 @@ onMounted(loadCaptcha)
 </script>
 
 <template>
-  <form class="comment-form" :class="{ compact }" @submit.prevent="submitForm">
+  <form
+    class="comment-form"
+    :class="{ compact }"
+    :data-captcha-key="form.captcha_key"
+    @submit.prevent="submitForm"
+  >
     <div class="form-head">
       <h2>{{ parentId ? `Reply to #${parentId}` : 'Add comment' }}</h2>
       <button type="button" class="ghost cancel" @click="emit('cancel')">
