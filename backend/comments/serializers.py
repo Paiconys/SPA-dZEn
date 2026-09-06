@@ -9,13 +9,18 @@ from .validators import resize_image_if_needed
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
+    # Relative /media/... so Vite proxy works (absolute http://web:8000 breaks in browser)
+    file = serializers.SerializerMethodField()
+
     class Meta:
         model = Attachment
         fields = ['id', 'file', 'uploaded_at']
-        read_only_fields = ['id', 'uploaded_at']
+        read_only_fields = ['id', 'file', 'uploaded_at']
 
-    def validate_file(self, value):
-        return resize_image_if_needed(value)
+    def get_file(self, obj):
+        if not obj.file:
+            return ''
+        return obj.file.url
 
 
 class CommentSerializer(serializers.ModelSerializer):

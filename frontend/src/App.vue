@@ -3,6 +3,7 @@ import { provide, reactive, ref } from 'vue'
 import CommentForm from './components/CommentForm.vue'
 import CommentList from './components/CommentList.vue'
 import Lightbox from './components/Lightbox.vue'
+import { toPublicUrl } from './urlUtils.js'
 
 const listRef = ref(null)
 const replyParentId = ref(null)
@@ -18,7 +19,7 @@ const lightbox = reactive({
 })
 
 async function openLightbox(attachment) {
-  const url = attachment.file
+  const url = toPublicUrl(attachment.file)
   const name = decodeURIComponent(url.split('/').pop() || 'file')
   const isImage = /\.(jpe?g|png|gif)(\?|$)/i.test(url)
 
